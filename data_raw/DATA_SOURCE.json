@@ -1,0 +1,10 @@
+{
+  "url": "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip",
+  "access_date": "2026-10-28",
+  "rows": {
+    "movies.csv": 9742,
+    "ratings.csv": 100836,
+    "tags.csv": 3683,
+    "links.csv": 9742
+  }
+}
