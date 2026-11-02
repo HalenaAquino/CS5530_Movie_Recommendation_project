@@ -1,0 +1,92 @@
+{
+  "row_counts": {
+    "movies": 9742,
+    "ratings": 100836,
+    "tags": 3683,
+    "links": 9742
+  },
+  "missing_values": {
+    "movies": {
+      "year": 13
+    },
+    "ratings": {},
+    "tags": {},
+    "links": {
+      "tmdbId": 8
+    }
+  },
+  "duplicates": {
+    "ratings_user_movie_pairs": 0,
+    "tags_user_movie_tag": 0,
+    "movie_ids_in_movies": 0,
+    "movie_titles_in_movies": 5
+  },
+  "invalid_rating_values": 0,
+  "referential_integrity": {
+    "ratings_movieIds_not_in_movies": 0,
+    "tags_movieIds_not_in_movies": 0,
+    "movies_with_no_ratings": 18
+  },
+  "time_range": {
+    "ratings_min": "1996-03-29 18:36:55",
+    "ratings_max": "2018-09-24 14:27:30",
+    "tags_min": "2006-01-13 19:09:12",
+    "tags_max": "2018-09-16 11:50:03",
+    "ratings_per_year": {
+      "1996": 6040,
+      "1997": 1916,
+      "1998": 507,
+      "1999": 2439,
+      "2000": 10061,
+      "2001": 3922,
+      "2002": 3478,
+      "2003": 4014,
+      "2004": 3279,
+      "2005": 5813,
+      "2006": 4059,
+      "2007": 7114,
+      "2008": 4351,
+      "2009": 4158,
+      "2010": 2301,
+      "2011": 1690,
+      "2012": 4656,
+      "2013": 1664,
+      "2014": 1439,
+      "2015": 6616,
+      "2016": 6703,
+      "2017": 8198,
+      "2018": 6418
+    }
+  },
+  "users": {
+    "n": 610,
+    "min_ratings": 20,
+    "median_ratings": 70.5,
+    "max_ratings": 2698,
+    "share_with_all_ratings_in_one_day": 0.593,
+    "share_ratings_from_top_10pct_users": 0.477
+  },
+  "movies": {
+    "n_catalog": 9742,
+    "n_rated": 9724,
+    "median_ratings": 3.0,
+    "share_with_1_rating": 0.354,
+    "share_under_5_ratings": 0.625,
+    "share_ratings_on_top_1pct_movies": 0.157,
+    "no_genres_listed": 34,
+    "year_unparsed": 13
+  },
+  "ratings": {
+    "mean": 3.502,
+    "share_ge_4": 0.482
+  },
+  "tags": {
+    "n_applications": 3683,
+    "n_users_who_tagged": 58,
+    "n_movies_tagged": 1572,
+    "n_distinct_tags_raw": 1589,
+    "n_distinct_tags_normalised": 1475,
+    "tags_on_movie_user_did_not_rate": 207,
+    "share_tags_by_top_user": 0.409
+  }
+}
