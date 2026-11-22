@@ -1,20 +1,18 @@
-
+import sys
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from scipy.sparse import csr_matrix
-from sklearn.preprocessing import normalize
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from recsys.models import MODELS, POSITIVE
 
 SEED = 42
 np.random.seed(SEED)
-
-POSITIVE = 4.0
-TEST_FRACTION = 0.20
 
 DATA = Path(__file__).resolve().parent.parent / "data_raw"
 
@@ -39,68 +37,6 @@ MOVIE_TAGS = (
 )
 
 
-class Recommender:
-
-    def __init__(self, df: pd.DataFrame):
-        self.n_users = df.userId.nunique()
-
-        counts = df.groupby("movieId").size().sort_values(ascending=False)
-        self.pop_counts = counts.to_dict()
-        self.pop_rank = counts.index.tolist()
-
-        self.user_seen = df.groupby("userId")["movieId"].apply(set).to_dict()
-        liked = df[df.rating >= POSITIVE]
-        self.user_liked = liked.groupby("userId")["movieId"].apply(list).to_dict()
-
-        self.item_ids = sorted(df.movieId.unique())
-        self.item_index = {m: i for i, m in enumerate(self.item_ids)}
-        user_ids = sorted(df.userId.unique())
-        user_index = {u: i for i, u in enumerate(user_ids)}
-        rows = liked.movieId.map(self.item_index).values
-        cols = liked.userId.map(user_index).values
-        mat = csr_matrix(
-            (np.ones(len(liked)), (rows, cols)),
-            shape=(len(self.item_ids), len(user_ids)),
-        )
-        self.M = normalize(mat)
-
-    def popularity(self, seen: set, k: int = 10):
-        out = []
-        for m in self.pop_rank:
-            if m not in seen:
-                out.append({"movieId": int(m), "score": float(self.pop_counts[m]), "reasons": []})
-                if len(out) == k:
-                    break
-        return out
-
-    def item_knn(self, liked_ids: list, seen: set, k: int = 10):
-        used = [m for m in liked_ids if m in self.item_index]
-        if not used:
-            return self.popularity(seen, k)
-
-        idx = [self.item_index[m] for m in used]
-        S = (self.M @ self.M[idx].T).tocsr()
-        scores = np.asarray(S.sum(axis=1)).ravel()
-        for m in seen:
-            if m in self.item_index:
-                scores[self.item_index[m]] = -np.inf
-
-        top = np.argsort(-scores)[:k]
-        out = []
-        for i in top:
-            if scores[i] <= 0:
-                break
-            sims = S.getrow(i).toarray().ravel()
-            best = np.argsort(-sims)[:3]
-            reasons = [
-                {"movieId": int(used[j]), "title": TITLE.get(used[j]), "similarity": round(float(sims[j]), 3)}
-                for j in best
-                if sims[j] > 0
-            ]
-            out.append({"movieId": int(self.item_ids[i]), "score": float(scores[i]), "reasons": reasons})
-        return out
-
-
 def decorate(recs: list):
     """Attach title / genres / tags to raw recommendations."""
     for r in recs:
@@ -108,10 +44,21 @@ def decorate(recs: list):
         r["title"] = TITLE.get(m)
         r["genres"] = GENRES.get(m)
         r["tags"] = MOVIE_TAGS.get(m, [])
+        for why in r["reasons"]:
+            why["title"] = TITLE.get(why["movieId"])
     return recs
 
 
-serving_model = Recommender(ratings)
+# What the number next to each reason means, per model.
+REASON_LABEL = {
+    "popularity": "Most rated movies overall, same list for everyone",
+    "item_knn": "Because you liked (similarity of audiences)",
+    "user_knn": "Because people with similar taste liked it, and also liked (share of those people)",
+    "mf": "Because you liked (share of the match score from that movie)",
+}
+
+
+serving_models = {name: cls().fit(ratings) for name, cls in MODELS.items()}
 
 
 app = FastAPI(title="MovieLens Recommender")
@@ -172,20 +119,31 @@ class RecommendRequest(BaseModel):
     ratings: list[RatingIn] = []      # new-user preference screen
     user_id: Optional[int] = None     # or an existing MovieLens user
     k: int = 10
-    model: str = "item_knn"           # "item_knn" or "popularity"
+    model: str = "item_knn"           # "popularity", "item_knn", "user_knn" or "mf"
+
+
+@app.get("/models")
+def list_models():
+    return [{"id": name, "label": REASON_LABEL[name]} for name in serving_models]
 
 
 @app.post("/recommend")
 def recommend(req: RecommendRequest):
-    if req.user_id is not None:
-        seen = serving_model.user_seen.get(req.user_id, set())
-        liked = serving_model.user_liked.get(req.user_id, [])
-    else:
-        seen = {r.movieId for r in req.ratings}
-        liked = [r.movieId for r in req.ratings if r.rating >= POSITIVE]
+    model = serving_models.get(req.model)
+    if model is None:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{req.model}'. Use one of {list(serving_models)}")
 
-    if req.model == "popularity":
-        recs = serving_model.popularity(seen, req.k)
+    if req.user_id is not None:
+        profile = model.user_profiles.get(req.user_id, {})
+        recs = model.recommend_user(req.user_id, req.k)
     else:
-        recs = serving_model.item_knn(liked, seen, req.k)
-    return {"model": req.model, "n_liked_used": len(liked), "recommendations": decorate(recs)}
+        profile = {r.movieId: r.rating for r in req.ratings}
+        recs = model.recommend(profile, req.k)
+
+    n_liked = sum(1 for r in profile.values() if r >= POSITIVE)
+    return {
+        "model": req.model,
+        "reason_label": REASON_LABEL[req.model],
+        "n_liked_used": n_liked,
+        "recommendations": decorate(recs),
+    }

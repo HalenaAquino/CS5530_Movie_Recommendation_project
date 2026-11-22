@@ -92,6 +92,7 @@ function Recommend() {
   const [myRatings, setMyRatings] = useState([]);
   const [recs, setRecs] = useState(null);
   const [error, setError] = useState(null);
+  const [model, setModel] = useState("item_knn");
 
   async function search(e) {
     e.preventDefault();
@@ -117,6 +118,7 @@ function Recommend() {
   async function getRecs() {
     const body = {
       k: 10,
+      model,
       ratings: myRatings.map((r) => ({ movieId: r.movieId, rating: r.rating })),
     };
     try {
@@ -162,6 +164,15 @@ function Recommend() {
           ))}
         </ul>
 
+        <label className="row">
+          Model{" "}
+          <select value={model} onChange={(e) => setModel(e.target.value)}>
+            <option value="item_knn">Item-to-item (similar movies)</option>
+            <option value="user_knn">User-to-user (similar people)</option>
+            <option value="mf">Matrix factorization</option>
+            <option value="popularity">Popularity baseline</option>
+          </select>
+        </label>
         <button disabled={myRatings.length === 0} onClick={getRecs}>Recommend movies</button>
         {error && <p className="error">{error}</p>}
       </section>
@@ -171,7 +182,10 @@ function Recommend() {
         {!recs && <p className="muted">Results appear here with the reasons behind each one.</p>}
         {recs && (
           <>
-            <p className="muted">Based on {recs.n_liked_used} movie(s) rated 4 or higher.</p>
+            <p className="muted">
+              Based on {recs.n_liked_used} movie(s) rated 4 or higher.
+              {recs.n_liked_used === 0 && " With no liked movies the list falls back to the most popular titles."}
+            </p>
             <ol className="recs">
               {recs.recommendations.map((r) => (
                 <li key={r.movieId}>
@@ -180,7 +194,7 @@ function Recommend() {
                   {r.tags.length > 0 && <div className="tags">{r.tags.map((t) => <span key={t}>{t}</span>)}</div>}
                   {r.reasons.length > 0 && (
                     <div className="why">
-                      Because you liked:{" "}
+                      {recs.reason_label}:{" "}
                       {r.reasons.map((x) => `${x.title} (${x.similarity})`).join(", ")}
                     </div>
                   )}
